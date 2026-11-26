@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="cone" cx="30%" cy="0%" r="100%">
+      <stop offset="0%" stop-color="#F2EDE4" stop-opacity=".28"/>
+      <stop offset="100%" stop-color="#F2EDE4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sl" cx="50%" cy="80%" r="60%">
+      <stop offset="0%" stop-color="#7CFFB2" stop-opacity=".35"/>
+      <stop offset="100%" stop-color="#7CFFB2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#0B0B12"/>
+  <path d="M120 96 L40 512 L470 512 L160 96 Z" fill="url(#cone)"/>
+  <path d="M100 40 L140 40 L160 96 L100 96 Z" fill="#2a2a36" stroke="#F2EDE4" stroke-width="4"/>
+  <g transform="translate(16 120) scale(2)">
+    <path d="M178 168 C214 166 222 134 204 120" fill="none" stroke="#FF3B2F" stroke-width="6" stroke-linecap="round"/>
+    <path d="M196 124 L210 108 L214 128 Z" fill="#FF3B2F"/>
+    <path d="M68 182 C58 124 88 90 128 92 C168 94 192 126 184 182 Z" fill="#FF3B2F" stroke="#0B0B12" stroke-width="3"/>
+    <path d="M96 52 C84 30 90 14 100 6 C102 22 108 34 114 44 Z" fill="#B8241B" stroke="#0B0B12" stroke-width="3"/>
+    <path d="M156 52 C168 30 162 14 152 6 C150 22 144 34 138 44 Z" fill="#B8241B" stroke="#0B0B12" stroke-width="3"/>
+    <circle cx="126" cy="80" r="42" fill="#FF3B2F" stroke="#0B0B12" stroke-width="3"/>
+    <circle cx="126" cy="96" r="40" fill="url(#sl)"/>
+    <ellipse cx="110" cy="78" rx="10" ry="8" fill="#F2EDE4"/>
+    <ellipse cx="142" cy="78" rx="10" ry="8" fill="#F2EDE4"/>
+    <circle cx="110" cy="82" r="4" fill="#0B0B12"/>
+    <circle cx="142" cy="82" r="4" fill="#0B0B12"/>
+    <path d="M116 104 Q126 110 138 102" stroke="#0B0B12" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M60 184 L74 122 L176 122 L166 184 Z" fill="#20202B" stroke="#F2EDE4" stroke-width="2.5"/>
+    <path d="M112 150 C110 144 112 140 115 138 C115 142 116 145 118 147 Z M134 150 C136 144 134 140 131 138 C131 142 130 145 128 147 Z" fill="#7CFFB2"/>
+    <rect x="36" y="183" width="168" height="7" rx="3" fill="#F2EDE4"/>
+  </g>
+</svg>

@@ -1,0 +1,30 @@
+{
+  "name": "daemon-site",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "usedaemon.xyz", "custom_domain": true },
+    { "pattern": "www.usedaemon.xyz", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "../site",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*"]
+  },
+  "ai": { "binding": "AI" },
+  "browser": { "binding": "BROWSER" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "daemon", "database_id": "7d304e8d-3a4b-4d8f-bccf-73307f13ca10" }
+  ],
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": {
+    "PUBLIC_ORIGIN": "https://usedaemon.xyz",
+    "WALLET_FACTORY": "0x85e17517b114b52fe3f7e2928c3db64b7148b434",
+    "USD_PER_HOUR": "1",
+    "OPENAI_FLOOR_USD": "5",
+    "AI_FEE_SHARE": "0.5"
+  }
+}
