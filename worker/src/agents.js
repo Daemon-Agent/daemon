@@ -1,6 +1,7 @@
 import { arxiv, hn, price, readUrl, rhchain, screenshot } from "./tools.js";
 import { llmJson } from "./llm.js";
-import { requestPayment, tgSend } from "./tg.js";
+import { requestPayment, tgFile, tgSend } from "./tg.js";
+import { devSold, EXPLORER, headBlock, MS_PER_BLOCK, nameLaunches, ponsLaunches, ponsToken, short, walletActivity } from "./onchain.js";
 import { runComputer, sandboxEnabled } from "./computer.js";
 import { balance, credit, spend } from "./credits.js";
 import { burnHeld, walletsEnabled } from "./wallet.js";
@@ -175,7 +176,76 @@ const GATHER = {
       data: { url: p.url, title: p.title, before_excerpt: before, now_excerpt: p.text.slice(0, 2500) },
     };
   },
+
+  async wallet(env, a, mem, args) {
+    const addr = args.address;
+    const head = await headBlock();
+    const first = !mem.block;
+    const w = await walletActivity(env, addr, { from: first ? head - blocksFor(a.every_min) : mem.block + 1, to: head });
+    mem.block = head;
+    const step = `watching ${short(addr)} on robinhood chain`;
+    const items = [...w.trades.map(fmtTrade), ...w.transfers.map(fmtTransfer)];
+    if (!items.length) {
+      return { lines: [first ? `watching ${short(addr)}: ${w.ethBalance} ETH, ${fmtN(w.txCount)} txs sent so far. quiet in the last ${w.window.minutes}m.` : `${short(addr)}: no trades or transfers in the last ${w.window.minutes}m.`], step };
+    }
+    const lines = [`${short(addr)}: ${items.length} move${items.length > 1 ? "s" : ""} in the last ${w.window.minutes}m`, ...items.slice(0, 3)];
+    return { lines, step, notifyAllowed: true, final: { notify: true, report: [`${short(addr)} on robinhood chain:`, ...items.slice(0, 8), w.explorer].join("\n") } };
+  },
+
+  async token(env, a, mem, args) {
+    const t = await ponsToken(env, args.address);
+    if (!t) throw new Error("that address is not a token on robinhood chain");
+    if (!t.pons) throw new Error(`$${t.symbol} did not launch on pons. holder tracking covers pons tokens only`);
+    const sym = `$${t.symbol}`;
+    const prev = mem.snap;
+    mem.snap = { holders: t.holders, devSoldEth: t.devSoldEth, graduated: t.graduated, mcap: t.mcapUsd, buys: t.trades.buys, sells: t.trades.sells };
+    const lines = [`${sym}: ${fmtN(t.holders)} holders · top 10 hold ${t.top10Pct}% · ${fmtN(t.trades.buys)} buys / ${fmtN(t.trades.sells)} sells${t.mcapUsd ? ` · mcap ~$${fmtN(t.mcapUsd)}` : ""}`];
+    const step = `watching ${sym} holders and dev wallet`;
+    if (!prev) {
+      lines.push(t.devSold ? `dev ${short(t.creator)} already sold ${t.devSoldEth} ETH worth.` : `dev ${short(t.creator)} bought ${t.devBuyEth} ETH at launch and hasn't sold.`);
+      return { lines, step };
+    }
+    const ev = [];
+    if (t.devSoldEth > prev.devSoldEth + 1e-6) ev.push(`dev ${short(t.creator)} sold: ${(t.devSoldEth - prev.devSoldEth).toFixed(4)} ETH out. now holds ${t.devHoldsPct}%.`);
+    if (t.graduated && !prev.graduated) ev.push(`${sym} graduated off the pons curve.`);
+    const hp = Math.max(5, +args.holders_pct || 15);
+    if (prev.holders >= 5 && Math.abs(t.holders - prev.holders) / prev.holders * 100 >= hp) ev.push(`holders ${prev.holders} → ${t.holders} (${pct(((t.holders - prev.holders) / prev.holders) * 100)}).`);
+    const mp = Math.max(5, +args.move_pct || 30);
+    if (prev.mcap && t.mcapUsd && Math.abs(t.mcapUsd - prev.mcap) / prev.mcap * 100 >= mp) ev.push(`mcap ~$${fmtN(prev.mcap)} → ~$${fmtN(t.mcapUsd)} (${pct(((t.mcapUsd - prev.mcap) / prev.mcap) * 100)}).`);
+    if (!ev.length) return { lines, step };
+    lines.push(...ev);
+    return { lines, step, notifyAllowed: true, final: { notify: true, report: [`${sym}:`, ...ev, t.explorer].join("\n") } };
+  },
+
+  async pons_launches(env, a, mem, args) {
+    const minDev = Math.max(0, +args.min_dev_eth || 0);
+    const hold = Math.min(120, Math.max(0, args.hold_min === undefined ? 10 : +args.hold_min));
+    const head = await headBlock();
+    const { launches } = await ponsLaunches(env, { from: mem.block ? mem.block + 1 : head - blocksFor(a.every_min), to: head });
+    mem.block = head;
+    const fresh = launches.filter((l) => l.devBuyEth >= minDev);
+    const pending = [...(mem.pending || []), ...fresh.map(({ token, curve, creator, block, devBuyEth }) => ({ token, curve, creator, block, devBuyEth }))].slice(-40);
+    const holdBlocks = blocksFor(hold);
+    const ripe = pending.filter((p) => head - p.block >= holdBlocks);
+    mem.pending = pending.filter((p) => head - p.block < holdBlocks);
+    const sold = hold && ripe.length ? await devSold(env, ripe) : new Map();
+    const keep = ripe.filter((p) => !sold.has(p.curve.toLowerCase()));
+    await nameLaunches(env, keep, 8);
+    const filter = minDev ? ` with a dev buy of ${minDev}+ ETH` : "";
+    const lines = [`${launches.length} new pons launch${launches.length === 1 ? "" : "es"} since last look, ${fresh.length}${filter}.`];
+    if (hold && ripe.length) lines.push(`${ripe.length - keep.length} of ${ripe.length} devs sold within ${hold}m. ${keep.length} still holding.`);
+    const step = `watching pons launches${filter}`;
+    if (!keep.length) return { lines, step };
+    const rows = keep.slice(0, 8).map((k) => `$${k.symbol} · dev bought ${k.devBuyEth} ETH${hold ? `, still holding after ${hold}m` : ""} · ${EXPLORER}/token/${k.token}`);
+    lines.push(...rows.slice(0, 2).map((r) => r.split(" · http")[0]));
+    return { lines, step, notifyAllowed: true, final: { notify: true, report: [`pons launches${filter}${hold ? `, dev still holding after ${hold}m` : ""}:`, ...rows].join("\n") } };
+  },
 };
+
+const blocksFor = (min) => Math.round((min * 60e3) / MS_PER_BLOCK);
+const fmtAmt = (x) => (x >= 1e6 ? `${(x / 1e6).toFixed(2)}M` : x >= 1e3 ? `${(x / 1e3).toFixed(1)}k` : `${+(+x).toPrecision(4)}`);
+const fmtTrade = (t) => `${t.side === "buy" ? "bought" : "sold"} ${fmtAmt(t.tokens)} $${t.symbol} for ${t.eth} ETH · ${t.when}`;
+const fmtTransfer = (t) => `${t.dir === "in" ? "received" : "sent"} ${fmtAmt(t.amount)} ${t.symbol} ${t.dir === "in" ? "from" : "to"} ${short(t.counterparty)} · ${t.when}`;
 
 export const TOOLS = Object.keys(GATHER);
 
@@ -183,15 +253,31 @@ const payRule = (p) => `when ${p.when}, ask the owner to approve paying ${p.amou
 
 async function computerStep(env, a, mem) {
   if (!sandboxEnabled(env)) return { lines: ["its computer isn't connected yet. skipping this run."], step: "waiting for its computer" };
-  let budget = 180;
+  const deep = a.plan.deep ? { pass: (mem.pass || 0) + 1, passes: a.plan.deep.passes } : null;
+  let budget = deep ? 200 : 180;
   if (a.kind === "user") {
     const b = await balance(env, a.owner_chat);
-    budget = Math.min(180, b.freeLeft + b.paid);
+    budget = Math.min(budget, b.freeLeft + b.paid);
     if (budget < 20) return { lines: ["out of night-shift minutes for today. back at 00:00 utc, or burn $DAEMON for more."], step: "out of minutes" };
   }
-  const r = await runComputer(env, a, mem, { budgetSec: budget, payRule: a.plan.pay ? payRule(a.plan.pay) : "", model: a.kind === "house" ? "pro" : "agent" });
+  const r = await runComputer(env, a, mem, { budgetSec: budget, payRule: a.plan.pay ? payRule(a.plan.pay) : "", model: a.kind === "house" ? "pro" : "agent", deep });
   if (a.kind === "user") await spend(env, a.owner_chat, r.seconds);
-  return { lines: [...r.lines, `used ${r.seconds}s of computer time.`], step: `next pass in ${a.every_min}m`, final: r.final || {}, payment: r.payment, notifyAllowed: true };
+  if (deep) mem.pass = deep.pass;
+  const finished = deep && (r.final?.finished === true || deep.pass >= deep.passes);
+  const step = deep ? (finished ? "finished. report delivered" : `pass ${deep.pass + 1} of ${deep.passes} next`) : `next pass in ${a.every_min}m`;
+  return { lines: [...r.lines, `used ${r.seconds}s of computer time.`], step, final: r.final || {}, payment: r.payment, files: r.files, finished, notifyAllowed: true };
+}
+
+async function keepFiles(env, a, files, caption) {
+  const out = [];
+  for (const f of files || []) {
+    const id = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+    await env.DB.prepare("INSERT INTO files (id,agent_id,name,mime,size,ts,body) VALUES (?,?,?,?,?,?,?)")
+      .bind(id, a.id, f.name, f.mime, f.bytes.length, Date.now(), Buffer.from(f.bytes).toString("base64")).run();
+    out.push(f.name);
+    if (a.kind === "user" && a.owner_chat) await tgFile(env, a.owner_chat, f, caption).catch((e) => console.log("tg file", e.message));
+  }
+  return out;
 }
 
 function system(a) {
@@ -214,6 +300,7 @@ export async function runAgent(env, a, { ctx } = {}) {
   let step = a.step;
   let provider = null;
   let report = "";
+  let finished = false;
 
   const pay = a.plan.pay;
   const apply = async (o, g) => {
@@ -233,6 +320,11 @@ export async function runAgent(env, a, { ctx } = {}) {
     step = g.step || step;
     let payment = g.payment || null;
     if (g.final) await apply(g.final, g);
+    if (g.files?.length) {
+      const names = await keepFiles(env, a, g.files, `${a.name} · ${g.finished ? "final report" : "new file"}`);
+      lines.push(`handed over ${names.join(", ")}${a.kind === "user" ? " in telegram" : ""}.`);
+    }
+    if (g.finished) finished = true;
     if (g.llm) {
       try {
         const r = await llmJson(env, g.llm, {
@@ -271,7 +363,12 @@ export async function runAgent(env, a, { ctx } = {}) {
   const runsTotal = a.runs_total + 1;
   let next = now + a.every_min * 60e3;
   let status = a.status;
-  if (a.kind === "trial" && runsTotal >= a.run_cap) {
+  if (finished) {
+    status = "done";
+    lines.push("job finished. clocking out.");
+  } else if (a.plan.deep && a.plan.tool === "computer" && step === "out of minutes") {
+    next = Date.parse(`${day}T00:00:00Z`) + 86400e3;
+  } else if (a.kind === "trial" && runsTotal >= a.run_cap) {
     status = "done";
     lines.push("trial shift over. clocking out.");
     step = "clocked out";
@@ -323,7 +420,8 @@ export async function tick(env, ctx) {
   ).bind(now + 90e3).all();
   let computers = 0;
   for (const a of results) {
-    if (a.plan.includes('"tool":"computer"') && ++computers > 3) continue;
+    if (Date.now() - now > 9 * 60e3) break;
+    if (a.plan.includes('"tool":"computer"') && (++computers > 3 || Date.now() - now > 6 * 60e3)) continue;
     await runAgent(env, a, { ctx }).catch((e) => console.log("run failed", a.id, e.message));
   }
   await econTick(env).catch((e) => console.log("econ", e.message));
@@ -331,5 +429,6 @@ export async function tick(env, ctx) {
   await env.DB.prepare("DELETE FROM logs WHERE ts < ?").bind(now - 7 * 86400e3).run();
   await env.DB.prepare("DELETE FROM agents WHERE kind='trial' AND status!='active' AND last_run < ?").bind(now - 6 * HOUR).run();
   await env.DB.prepare("DELETE FROM logs WHERE agent_id NOT IN (SELECT id FROM agents)").run();
+  await env.DB.prepare("DELETE FROM files WHERE ts < ? OR agent_id NOT IN (SELECT id FROM agents)").bind(now - 30 * 86400e3).run();
   await env.DB.prepare("DELETE FROM hits WHERE reset < ?").bind(now).run();
 }

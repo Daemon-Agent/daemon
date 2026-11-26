@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, defineChain, formatEther, getAddress, http, isAddress, keccak256, parseAbi, parseEther, toHex } from "viem";
+import { createPublicClient, createWalletClient, defineChain, fallback, formatEther, getAddress, http, isAddress, keccak256, parseAbi, parseEther, toHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 const RPC = "https://rpc.mainnet.chain.robinhood.com";
@@ -28,8 +28,9 @@ const WALLET_ABI = parseAbi([
 ]);
 const ERC20_ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 
-export const pub = createPublicClient({ chain, transport: http(RPC) });
-const opClient = (env) => createWalletClient({ account: privateKeyToAccount(env.OPERATOR_KEY), chain, transport: http(RPC) });
+const transport = () => fallback([http("https://robinhood.rpc.pinax.network"), http(RPC)], { retryCount: 2 });
+export const pub = createPublicClient({ chain, transport: transport() });
+const opClient = (env) => createWalletClient({ account: privateKeyToAccount(env.OPERATOR_KEY), chain, transport: transport() });
 
 export const walletsEnabled = (env) => Boolean(env.OPERATOR_KEY && env.WALLET_FACTORY);
 export const operatorAddress = (env) => (env.OPERATOR_KEY ? privateKeyToAccount(env.OPERATOR_KEY).address : null);

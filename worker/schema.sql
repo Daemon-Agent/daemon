@@ -80,6 +80,32 @@ CREATE TABLE IF NOT EXISTS meta (
   v TEXT NOT NULL
 );
 
+-- web chat sessions; claim is the one-time code that moves the session's daemon to telegram
+CREATE TABLE IF NOT EXISTS chats (
+  sid TEXT PRIMARY KEY,
+  created INTEGER NOT NULL,
+  updated INTEGER NOT NULL,
+  day TEXT NOT NULL DEFAULT '',
+  n INTEGER NOT NULL DEFAULT 0,
+  agent_id TEXT,
+  claim TEXT,
+  offer TEXT,                     -- a planned job waiting for "start it"
+  turns TEXT NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS chats_claim ON chats (claim);
+
+-- deliverables a daemon produced on its computer (report.md, table.csv, chart.png)
+CREATE TABLE IF NOT EXISTS files (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  ts INTEGER NOT NULL,
+  body TEXT NOT NULL              -- base64
+);
+CREATE INDEX IF NOT EXISTS files_agent ON files (agent_id, ts);
+
 -- money in and out, in USD: kind = ai (model spend), fee (creator fees earned), burn (value of $DAEMON burned), price (token price sample)
 CREATE TABLE IF NOT EXISTS ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How it works — DAEMON</title>
+<meta name="description" content="How daemons work: live tools, their own Linux computer, Telegram reports, capped wallets, and model spend capped by fees." />
+<meta property="og:title" content="How it works — DAEMON" />
+<meta property="og:description" content="How daemons work: live tools, their own Linux computer, Telegram reports, capped wallets, and model spend capped by fees." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://usedaemon.xyz/how" />
+<meta property="og:image" content="https://usedaemon.xyz/brand/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@usedaemonagent" />
+<meta name="twitter:title" content="How it works — DAEMON" />
+<meta name="twitter:image" content="https://usedaemon.xyz/brand/og.png" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/style.css" />
+<script src="/config.js"></script>
+</head>
+<body data-page="how">
+<div class="grain" aria-hidden="true"></div>
+<div class="lamp-glow" aria-hidden="true"></div>
+<div class="horn-cursor" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M8 16 C4 9 6 3 10 0 C10 6 12 10 15 13 Z M32 16 C36 9 34 3 30 0 C30 6 28 10 25 13 Z"/></svg></div>
+
+<header class="topbar">
+  <a class="brand" href="/"><svg class="brand-eyes eyes-mark" viewBox="80 220 352 90" aria-hidden="true"><path d="M92 236 L228 268 Q196 304 140 296 Q100 286 92 236 Z"/><path d="M420 236 L284 268 Q316 304 372 296 Q412 286 420 236 Z"/></svg> DAEMON</a>
+  <nav class="procnav" id="procnav">
+    <a href="/chat">./chat</a>
+    <a href="/office">./office</a>
+    <a href="/how">./how</a>
+    <a href="/token">./$DAEMON</a>
+    <a href="https://x.com/usedaemonagent" target="_blank" rel="noopener">./x ↗</a>
+    <a href="https://github.com/Daemon-Agent/daemon" target="_blank" rel="noopener">./source ↗</a>
+  </nav>
+  <span class="status-pill"><i class="dot"></i> pid 1 · running</span>
+  <button class="navtoggle mono" id="navtoggle" aria-expanded="false" aria-controls="procnav">menu</button>
+</header>
+
+<main>
+  <section class="page-head">
+    <p class="kicker mono">$ man daemon</p>
+    <h1>How it works</h1>
+    <p class="sub">A daemon is an agent with a job, a schedule, a memory and, when it needs one, its own computer. You talk to it. It does the rest.</p>
+  </section>
+
+  <section style="padding-top:0">
+    <div class="steps">
+      <article class="step">
+        <span class="cmd mono">talk</span>
+        <h3>Ask</h3>
+        <p>In the web chat or Telegram. It looks things up live and answers with what it found, not what it guesses.</p>
+      </article>
+      <article class="step">
+        <span class="cmd mono">summon</span>
+        <h3>Hand off</h3>
+        <p>When something needs watching or digging, it proposes a daemon. One tap starts it.</p>
+      </article>
+      <article class="step">
+        <span class="cmd mono">run</span>
+        <h3>It moves in</h3>
+        <p>It checks on its schedule, keeps notes between runs, and works on its own Linux computer when the job needs one.</p>
+      </article>
+      <article class="step">
+        <span class="cmd mono">report</span>
+        <h3>You get the work</h3>
+        <p>Pings, reports and files land in Telegram. Anything that spends money waits for your tap.</p>
+      </article>
+    </div>
+
+    <h2 class="subhead">Tools</h2>
+    <p class="sub">What a daemon can reach today. Nothing here is a mock-up.</p>
+    <div class="tools" style="margin-top:28px">
+      <article><span class="tag mono">every 5 min to once a day</span><h3>Watchers</h3><p>Crypto prices from Coinbase and Kraken, Hacker News, arXiv, any public web page. It notices what changed since its last look.</p></article>
+      <article><span class="tag mono">read straight from the chain</span><h3>Robinhood Chain</h3><p>A wallet's Pons buys, sells and token transfers. A Pons token's dev wallet, holders, top-10 share, market cap and graduation. New Pons launches filtered by dev buy and whether the dev held.</p></article>
+      <article><span class="tag mono">linux · python · real browser</span><h3>Its own computer</h3><p>For jobs the simple tools can't do: several sources, scraping, comparing, keeping files over time. Files stay between runs.</p></article>
+      <article><span class="tag mono">one-time · about 10 minutes</span><h3>Research jobs</h3><p>Works in a few passes, then hands over report.md with a CSV or a chart. Sent as files in Telegram.</p></article>
+      <article><span class="tag mono">capped by a contract</span><h3>Wallet</h3><p>A DaemonWallet on Robinhood Chain that you own. The daily cap lives in the contract, so the daemon can't raise it.</p></article>
+      <article><span class="tag mono">reports and approvals</span><h3>Telegram</h3><p>Talk, start daemons, read logs, kill them. /list, /log, /kill, /wallet, /credits.</p></article>
+    </div>
+  </section>
+
+  <section class="leash" id="leash">
+    <div class="leash-copy">
+      <p class="kicker mono">$ cat /etc/leash.conf</p>
+      <h2>Tireless.<br />Not unsupervised.</h2>
+    </div>
+    <ul class="rules mono">
+      <li><span class="k">read_only</span> public data only. no logins, no posting, no trading for you.</li>
+      <li><span class="k">approve</span> every payment waits for your tap in telegram. nothing moves without it.</li>
+      <li><span class="k">spend_cap</span> its wallet has a daily cap enforced onchain. only you can raise it.</li>
+      <li><span class="k">kill</span> /kill stops it before its next run and cancels pending payments.</li>
+      <li><span class="k">log</span> every run, command and result is written to its log. /log reads it.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="kicker mono">$ daemon --economics</p>
+      <h2>Models and money</h2>
+      <p class="sub" id="econ-copy">It thinks with OpenAI models. When OpenAI is down or the day's model budget is spent, it falls back to open models on Cloudflare Workers AI. The daily budget is a share of the last 24 hours of creator fees, with a floor.</p>
+    </div>
+    <div class="nums mono" id="nums"></div>
+    <p class="fine">Live numbers from <a href="/api/meta" target="_blank" rel="noopener">/api/meta</a>. Every model call is metered and booked as it happens.</p>
+
+    <h2 class="subhead">What's live</h2>
+    <table class="status-table mono" style="margin-top:24px">
+      <thead><tr><th>what</th><th>status</th></tr></thead>
+      <tbody id="status-rows"></tbody>
+    </table>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="footer-mascot" id="footer-mascot"></div>
+  <p class="mono">daemon: still running. press <kbd>`</kbd> if you're curious.</p>
+  <nav class="footer-links" id="footer-links"></nav>
+</footer>
+
+<div class="console" id="console" hidden>
+  <pre class="mono" id="console-out">daemon console. try: help</pre>
+  <div class="console-line mono"><span>$</span><input id="console-in" autocomplete="off" spellcheck="false" aria-label="console" /></div>
+</div>
+
+<aside class="drawer" id="drawer" hidden>
+  <button class="modal-x" id="drawer-x" aria-label="Close">×</button>
+  <h3 id="drawer-title"></h3>
+  <pre class="mono" id="drawer-log"></pre>
+</aside>
+
+<template id="mascot-tpl">
+  <svg class="mascot" viewBox="0 0 240 220" aria-hidden="true">
+    <defs>
+      <radialGradient id="screenlight" cx="50%" cy="80%" r="60%">
+        <stop offset="0%" stop-color="#7CFFB2" stop-opacity=".35" />
+        <stop offset="100%" stop-color="#7CFFB2" stop-opacity="0" />
+      </radialGradient>
+    </defs>
+    <path class="tail" d="M178 168 C214 166 222 134 204 120" fill="none" stroke="#FF3B2F" stroke-width="6" stroke-linecap="round" />
+    <path class="tail-tip" d="M196 124 L210 108 L214 128 Z" fill="#FF3B2F" />
+    <path d="M68 182 C58 124 88 90 128 92 C168 94 192 126 184 182 Z" fill="#FF3B2F" stroke="#0B0B12" stroke-width="3" />
+    <path d="M96 52 C84 30 90 14 100 6 C102 22 108 34 114 44 Z" fill="#B8241B" stroke="#0B0B12" stroke-width="3" stroke-linejoin="round" />
+    <path d="M156 52 C168 30 162 14 152 6 C150 22 144 34 138 44 Z" fill="#B8241B" stroke="#0B0B12" stroke-width="3" stroke-linejoin="round" />
+    <circle cx="126" cy="80" r="42" fill="#FF3B2F" stroke="#0B0B12" stroke-width="3" />
+    <circle cx="126" cy="96" r="40" fill="url(#screenlight)" />
+    <g class="eyes">
+      <ellipse cx="110" cy="78" rx="10" ry="8" fill="#F2EDE4" />
+      <ellipse cx="142" cy="78" rx="10" ry="8" fill="#F2EDE4" />
+      <g class="pupils">
+        <circle cx="110" cy="82" r="4" fill="#0B0B12" />
+        <circle cx="142" cy="82" r="4" fill="#0B0B12" />
+      </g>
+      <rect class="lids" x="98" y="68" width="56" height="8" fill="#FF3B2F" />
+    </g>
+    <path d="M100 90 Q110 94 118 90 M134 90 Q142 94 152 90" stroke="#B8241B" stroke-width="2" fill="none" stroke-linecap="round" />
+    <path d="M116 104 Q126 110 138 102" stroke="#0B0B12" stroke-width="3" fill="none" stroke-linecap="round" />
+    <path d="M132 104 L134 110 L137 103" fill="#F2EDE4" />
+    <ellipse class="hand hand-l" cx="66" cy="166" rx="9" ry="7" fill="#FF3B2F" stroke="#0B0B12" stroke-width="3" />
+    <ellipse class="hand hand-r" cx="170" cy="166" rx="9" ry="7" fill="#FF3B2F" stroke="#0B0B12" stroke-width="3" />
+    <path d="M60 184 L74 122 L176 122 L166 184 Z" fill="#20202B" stroke="#F2EDE4" stroke-width="2.5" stroke-linejoin="round" />
+    <path d="M112 150 C110 144 112 140 115 138 C115 142 116 145 118 147 Z M134 150 C136 144 134 140 131 138 C131 142 130 145 128 147 Z" fill="#7CFFB2" class="logo" />
+    <rect x="36" y="183" width="168" height="7" rx="3" fill="#F2EDE4" />
+  </svg>
+</template>
+
+<script src="/app.js"></script>
+</body>
+</html>

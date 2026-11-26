@@ -1,6 +1,8 @@
 import { runAgent, tick } from "./agents.js";
-import { llmJson, llmName } from "./llm.js";
-import { botUsername, ensureWebhook, handleUpdate, hookSecret } from "./tg.js";
+import { llmName } from "./llm.js";
+import { botUsername, describe, ensureWebhook, every, handleUpdate, hookSecret, insertAgent, newAgent, planJob } from "./tg.js";
+import { claimCode, converse, daemonsOf, saveTurns, session } from "./chat.js";
+import { useRpc } from "./onchain.js";
 import { sandboxEnabled } from "./computer.js";
 import { operatorAddress, walletsEnabled } from "./wallet.js";
 import { econSummary } from "./econ.js";
@@ -60,77 +62,106 @@ async function feed(env) {
   };
 }
 
-const TRIALS = {
-  "price-watch": {
-    job: "Watch the ETH price and ping on a 0.5% move.",
-    plan: { tool: "price", args: { symbol: "ETH", threshold_pct: 0.5 }, notify_when: "ETH moves 0.5% from the reference price" },
-  },
-  research: {
-    job: "Research what's new in AI agents today and write a brief.",
-    plan: { tool: "hn", args: { query: "AI agents" }, size: "big", notify_when: "always: a 3 to 5 line brief of the most interesting new stories, with links" },
-  },
-};
+const SID = /^[a-f0-9]{24}$/;
+const MAX_TRIALS = 25;
 
-const SAMPLE_THREAD = `From: Dana (landlord)
-Subject: lease renewal + plumber
+async function tgLink(env, code) {
+  const name = await botUsername(env).catch(() => null);
+  return name ? `https://t.me/${name}${code ? `?start=${code}` : ""}` : null;
+}
 
-Hi! Your lease ends Jan 31. Rent goes to $2,350 if you renew for 12 months, or $2,500 month-to-month. Can you let me know by Friday? Also the plumber can come Tuesday or Thursday morning, which works for you?`;
+async function trialView(env, id) {
+  if (!id) return null;
+  const a = await env.DB.prepare("SELECT id,job,step,status,every_min,run_cap,runs_total FROM agents WHERE id=?").bind(id).first();
+  if (!a) return null;
+  const { results } = await env.DB.prepare("SELECT ts,line FROM logs WHERE agent_id=? ORDER BY id DESC LIMIT 14").bind(id).all();
+  return { id: a.id, job: a.job, step: a.step, status: a.status, every_min: a.every_min, runsLeft: Math.max(0, a.run_cap - a.runs_total), log: results.reverse().map((l) => `${hhmm(l.ts)} ${l.line}`) };
+}
 
-async function trial(env, req, ctx) {
-  const { job } = await req.json().catch(() => ({}));
-  if (job !== "inbox" && !TRIALS[job]) return json({ log: ["pick one of the jobs above."] }, 400);
-  const ip = req.headers.get("cf-connecting-ip") || "unknown";
-  if (!(await allow(env, `trial:${ip}`, 5, 3600e3))) {
-    return json({ log: ["you've summoned 5 trial daemons this hour. they're still working. come back later."] }, 429);
-  }
+function offerView(o) {
+  return o ? { key: o.key, what: describe(o.plan), cadence: o.plan.deep ? "one-time, about 10 minutes, then report.md" : every(o.plan.every_min), telegramOnly: o.plan.tool === "computer" } : null;
+}
 
-  if (job === "inbox") {
-    const { out, provider } = await llmJson(env, "big", {
-      system: `You draft email replies for a busy person. Be brief and warm. You may pick Tuesday morning for the plumber. You must NOT accept, sign or agree to any rent or lease terms: write in first person as the tenant: you're weighing the 12-month option and will confirm before Friday. Return only JSON {"summary":"what the email wants, under 90 chars","draft":"the reply, under 450 chars"}`,
-      user: SAMPLE_THREAD,
-      maxTokens: 300,
-    });
-    return json({
-      provider,
-      log: [
-        "i can't open your inbox from a no-login trial, so here's a sample thread (not yours):",
-        "  from: dana (landlord) · lease renewal + plumber",
-        `read it: ${String(out.summary || "").slice(0, 120)}`,
-        "drafted a reply:",
-        ...String(out.draft || "").split(/\n+/).map((l) => `  ${l}`),
-        "nothing sent. drafts wait for your ok.",
-        `mail access is on the roadmap, not live yet. model: ${provider}`,
-      ],
-    });
-  }
-
-  const t = TRIALS[job];
-  const { n } = await env.DB.prepare("SELECT COUNT(*) n FROM agents WHERE kind='trial' AND status='active'").bind().first();
-  if (n >= 15) return json({ log: ["the office is full of visitor daemons right now. try again in a few minutes."] }, 503);
-
-  const now = Date.now();
-  const id = `visitor-${crypto.randomUUID().slice(0, 4)}`;
-  const a = {
-    id, name: id, job: t.job, kind: "trial", owner_chat: null, plan: JSON.stringify(t.plan), every_min: 5,
-    next_run: now, last_run: 0, created: now, status: "active", memory: "{}", step: "clocking in",
-    runs_total: 0, runs_today: 0, day: "", run_cap: 6, public: 1, thumb_at: 0,
-  };
-  await env.DB.prepare(
-    "INSERT INTO agents (id,name,job,kind,plan,every_min,next_run,created,run_cap,public) VALUES (?,?,?,'trial',?,5,?,?,6,1)"
-  ).bind(a.id, a.name, a.job, a.plan, now, now).run();
-  const r = await runAgent(env, a, { ctx });
-  const tgName = await botUsername(env);
+async function chatGet(env, url) {
+  const sid = url.searchParams.get("sid") || "";
+  if (!SID.test(sid)) return json({ error: "bad session" }, 400);
+  const s = await env.DB.prepare("SELECT * FROM chats WHERE sid=?").bind(sid).first();
+  if (!s) return json({ turns: [], agent: null, offer: null });
   return json({
-    id,
-    provider: r.provider,
-    log: [
-      ...r.lines,
-      ...(r.report ? ["", ...r.report.split(/\n+/)] : []),
-      "",
-      `close this tab if you want. ${id} keeps going in the night office: 5 more runs, one every 5 min.`,
-      tgName ? `want one that runs for days? t.me/${tgName}` : null,
-      r.provider ? `model: ${r.provider}` : null,
-    ].filter((l) => l !== null).filter((l, i, arr) => l !== "" || (i > 0 && arr[i - 1] !== "" && i < arr.length - 1)),
+    turns: JSON.parse(s.turns || "[]"),
+    agent: await trialView(env, s.agent_id),
+    offer: offerView(s.offer ? JSON.parse(s.offer) : null),
+    telegram: s.claim ? await tgLink(env, s.claim) : null,
+  });
+}
+
+async function chatPost(env, req) {
+  const { sid, text } = await req.json().catch(() => ({}));
+  if (!SID.test(String(sid || ""))) return json({ error: "bad session" }, 400);
+  const msg = String(text || "").trim().slice(0, 500);
+  if (!msg) return json({ error: "empty message" }, 400);
+  const ip = req.headers.get("cf-connecting-ip") || "unknown";
+  if (!(await allow(env, `chat:${sid}`, 40, 86400e3)) || !(await allow(env, `chatip:${ip}`, 80, 86400e3))) {
+    return json({ say: "that's today's limit for web chat. telegram has more room, and your daemon keeps working either way.", telegram: await tgLink(env) }, 429);
+  }
+  const s = await session(env, sid);
+  const daemons = s.agent_id ? await daemonsOf(env, "id=?", s.agent_id) : [];
+  const r = await converse(env, { turns: s.turns, text: msg, daemons });
+  let offer = null;
+  if (r.offer) {
+    const p = await planJob(env, r.offer);
+    if (p.plan) offer = { key: crypto.randomUUID().slice(0, 8), plan: p.plan, ask: r.offer };
+  }
+  const turns = [...s.turns, { role: "user", text: msg }, { role: "daemon", text: r.say }];
+  await saveTurns(env, sid, turns, { offer: offer ? JSON.stringify(offer) : null });
+  return json({ say: r.say, offer: offerView(offer), looked: r.tools });
+}
+
+async function chatStart(env, req, ctx) {
+  const { sid, key } = await req.json().catch(() => ({}));
+  if (!SID.test(String(sid || ""))) return json({ error: "bad session" }, 400);
+  const s = await session(env, sid);
+  if (!s.offer || s.offer.key !== key) return json({ error: "that offer expired. ask again." }, 409);
+  const { plan, ask } = s.offer;
+  const code = claimCode();
+  if (plan.tool === "computer") {
+    await saveTurns(env, sid, s.turns, { claim: code });
+    return json({ say: "this one works on its own linux computer, and computer minutes belong to a telegram owner. open telegram and it starts there.", telegram: await tgLink(env, code) });
+  }
+  const ip = req.headers.get("cf-connecting-ip") || "unknown";
+  if (!(await allow(env, `start:${ip}`, 6, 3600e3))) return json({ error: "you've started 6 daemons this hour. the last ones are still working." }, 429);
+  const { n } = await env.DB.prepare("SELECT COUNT(*) n FROM agents WHERE kind='trial' AND status='active'").bind().first();
+  if (n >= MAX_TRIALS) return json({ error: "the office is full of visitor daemons right now. try again in a few minutes, or start it in telegram.", telegram: await tgLink(env) }, 503);
+  if (s.agent_id) await env.DB.prepare("UPDATE agents SET status='done', step='replaced by a new job' WHERE id=? AND kind='trial'").bind(s.agent_id).run();
+  const a = newAgent(plan, ask, { kind: "trial", isPublic: 1, runCap: 12 });
+  await insertAgent(env, a);
+  const r = await runAgent(env, a, { ctx });
+  const say = `${a.id} is on the job. ${describe(plan)} checks ${every(plan.every_min)}, 11 more looks here. move it to telegram to keep it running and get the pings.`;
+  await saveTurns(env, sid, [...s.turns, { role: "daemon", text: say }], { agent_id: a.id, claim: code, offer: null });
+  return json({ say, agent: await trialView(env, a.id), firstLook: r.lines, telegram: await tgLink(env, code) });
+}
+
+async function gallery(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT f.id, f.name, f.mime, f.size, f.ts, a.id agent, a.job FROM files f JOIN agents a ON a.id=f.agent_id
+     WHERE a.public=1 ORDER BY f.ts DESC LIMIT 24`
+  ).all();
+  return { files: results.map((f) => ({ ...f, url: `/api/file/${f.id}/${encodeURIComponent(f.name)}` })) };
+}
+
+async function fileGet(env, id) {
+  const f = await env.DB.prepare("SELECT f.name, f.mime, f.body FROM files f JOIN agents a ON a.id=f.agent_id WHERE f.id=? AND a.public=1").bind(id).first();
+  if (!f) return new Response("not found", { status: 404 });
+  const bin = Uint8Array.from(atob(f.body), (c) => c.charCodeAt(0));
+  const inline = /^image\/|^text\//.test(f.mime);
+  return new Response(bin, {
+    headers: {
+      "content-type": f.mime.startsWith("text/") ? `${f.mime === "text/html" ? "text/plain" : f.mime}; charset=utf-8` : f.mime,
+      "content-disposition": `${inline ? "inline" : "attachment"}; filename="${f.name.replace(/[^\w.\-]/g, "_")}"`,
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",
+      "cache-control": "public, max-age=3600",
+    },
   });
 }
 
@@ -146,7 +177,11 @@ async function api(req, env, ctx, url) {
     return new Response(bin, { headers: { "content-type": "image/jpeg", "cache-control": "public, max-age=600" } });
   }
 
-  if (p === "/api/trial" && req.method === "POST") return trial(env, req, ctx);
+  if (p === "/api/chat" && req.method === "GET") return chatGet(env, url);
+  if (p === "/api/chat" && req.method === "POST") return chatPost(env, req);
+  if (p === "/api/chat/start" && req.method === "POST") return chatStart(env, req, ctx);
+  if (p === "/api/files" && req.method === "GET") return json(await gallery(env));
+  if (p.startsWith("/api/file/")) return fileGet(env, p.split("/")[3] || "");
 
   if (p === "/api/tg" && req.method === "POST") {
     if (!env.TELEGRAM_BOT_TOKEN) return new Response("bot not configured", { status: 404 });
@@ -182,6 +217,7 @@ async function api(req, env, ctx, url) {
 
 export default {
   async fetch(req, env, ctx) {
+    useRpc(env);
     const url = new URL(req.url);
     if (url.pathname.startsWith("/api/")) {
       return api(req, env, ctx, url).catch((e) => {
@@ -192,6 +228,7 @@ export default {
     return env.ASSETS.fetch(req);
   },
   async scheduled(event, env, ctx) {
+    useRpc(env);
     ctx.waitUntil(
       Promise.all([
         tick(env, ctx),

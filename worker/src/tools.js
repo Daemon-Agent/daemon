@@ -82,11 +82,12 @@ export async function arxiv(cat = "cs.MA", n = 15) {
   });
 }
 
-const RH_RPC = "https://rpc.mainnet.chain.robinhood.com";
-const rpc = (method) => retry(() => rpcOnce(method), 3);
+const RH_RPCS = ["https://robinhood.rpc.pinax.network", "https://rpc.mainnet.chain.robinhood.com", "https://robinhood.drpc.org"];
+let rpcTurn = 0;
+const rpc = (method) => retry(() => rpcOnce(method, RH_RPCS[rpcTurn++ % RH_RPCS.length]), 3);
 
-async function rpcOnce(method) {
-  const r = await fetch(RH_RPC, {
+async function rpcOnce(method, url) {
+  const r = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: [] }),

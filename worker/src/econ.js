@@ -124,10 +124,11 @@ export async function econSummary(env) {
   const since = startOfDay();
   const [burnToday, feesAll, aiAll] = await Promise.all([sum(env, "burn", since), sum(env, "fee", 0), sum(env, "ai", 0)]);
   const r2 = (x) => Math.round(x * 100) / 100;
+  const r4 = (x) => Math.round(x * 1e4) / 1e4;
   return {
     usdPerHour: usdPerHour(env),
-    aiSpentTodayUsd: r2(b.spent), aiBudgetTodayUsd: r2(b.budget), feeShare: b.share,
+    aiSpentTodayUsd: r4(b.spent), aiBudgetTodayUsd: r2(b.budget), feeShare: b.share, floorUsd: b.floor,
     fees24hUsd: r2(b.fees24h), burnedTodayUsd: r2(burnToday),
-    feesAllTimeUsd: r2(feesAll), aiAllTimeUsd: r2(aiAll),
+    feesAllTimeUsd: r2(feesAll), aiAllTimeUsd: r4(aiAll),
   };
 }

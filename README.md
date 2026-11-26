@@ -1,26 +1,34 @@
 # DAEMON
 
-Always-on AI agents. Give one a job in a sentence. Close the tab. It keeps going.
+Always-on AI agents. Talk to one, hand it a job, close the tab. It keeps going.
 
 Live at [usedaemon.xyz](https://usedaemon.xyz) · Telegram [@usedaemonagent](https://t.me/usedaemonagent) · X [@usedaemonagent](https://x.com/usedaemonagent)
 
 ## What it does
 
-You send one sentence to the Telegram bot, like `watch ETH and ping me on a 2% move` or `every morning, read new arXiv agent papers and send me the 3 worth reading`. A planner turns it into a job, and a scheduler runs it every few minutes or hours, whether or not anyone has a browser open. The agent keeps a work log and a memory between runs, and messages you only when something matters.
+You talk to it, on the site at [/chat](https://usedaemon.xyz/chat) or in the Telegram bot. It answers with live data: it can call up to two tools per message (`price`, `hn`, `arxiv`, `read_url`, `chain`, `pons_launches`) before it replies, and every number in the answer comes from those results. When what you ask needs watching or digging, it offers a daemon, and one tap starts it.
 
-Watch jobs run on fixed tools:
+A daemon is a job on a schedule. It runs every few minutes or hours whether or not anyone has a browser open, keeps a work log and a memory between runs, and messages you only when something changed.
 
-| tool | source |
+| tool | what it watches |
 |---|---|
 | `price` | Coinbase and Kraken spot, cross-checked |
 | `hn` | Hacker News via the Algolia API |
-| `arxiv` | arXiv listings for a category |
-| `watch_url` | re-reads a public page and notices when it changes |
-| `rhchain` | Robinhood Chain RPC, with Blockscout as fallback |
+| `arxiv` | new papers in an arXiv category |
+| `watch_url` | a public page, re-read and diffed |
+| `rhchain` | Robinhood Chain blocks and gas |
+| `wallet` | a Robinhood Chain wallet: Pons buys and sells, ERC-20 transfers in and out |
+| `token` | a Pons token: dev wallet sells, holder count, top-10 share, market cap, graduation |
+| `pons_launches` | new Pons launches, filtered by the creator's launch buy and whether the creator still holds after N minutes |
+| `computer` | anything else, on the daemon's own Linux machine |
 
-Agents with the `computer` tool get their own Linux sandbox ([E2B](https://e2b.dev)). They write and run scripts, keep files between runs, and use a real browser. The sandbox pauses between runs, so the files stay.
+The onchain tools read Robinhood Chain directly over JSON-RPC (`eth_getLogs` on the Pons factory, launch router and bonding curves, plus ERC-20 `Transfer` logs), with no indexer in between. Holder counts are rebuilt from the token's full transfer history. Set `RH_RPC_URL` to a dedicated endpoint (Alchemy, QuickNode); without it the worker rotates between the public endpoints and says so when they rate-limit it. Onchain reports are built from the chain data alone, without a model.
 
-The public night office on the site shows the house agents working live, with their logs and screenshots. You can try a job there without a wallet or an account.
+Daemons with the `computer` tool get their own Linux sandbox ([E2B](https://e2b.dev)). They write and run scripts, keep files between runs, and use a real browser. The sandbox pauses between runs, so the files stay. When a run produces something worth keeping, the daemon hands it over: `report.md`, a `.csv`, a `chart.png`, sent as files in Telegram and, for public daemons, shown in the office gallery.
+
+A one-time request ("research X and send me a report") becomes a research job: the same computer, three passes of a few minutes each, ending with `report.md` and whatever tables or charts it built. Then it clocks out.
+
+The night office on the site shows the public daemons working live, with their logs, screenshots and finished files. Daemons you start from the web chat work there in public for 12 runs; the chat gives you a one-time Telegram link that moves the daemon to you.
 
 ## Wallets with an onchain cap
 
@@ -39,7 +47,14 @@ Computer time costs real money, so each Telegram chat gets a free daily allowanc
 
 ## Models
 
-Every model call is real; there are no canned replies. With an `OPENAI_API_KEY` set, calls go to OpenAI under a daily budget: `max(OPENAI_FLOOR_USD, AI_FEE_SHARE × creator fees of the last 24h)`. Every call is booked in the `ledger` table with its real token usage. Past the budget, or without a key, agents fall back to open models on Cloudflare Workers AI (Llama 3.3 70B, Llama 3.1 8B, gpt-oss-120b). Which models are live, and today's spend against the budget, are public at [`/api/meta`](https://usedaemon.xyz/api/meta).
+Every model call is real; there are no canned replies. Calls go to OpenAI:
+
+| role | model |
+|---|---|
+| chat, watch agents, user computer agents | `gpt-6-luna` |
+| the planner that turns a request into a job, house computer agents | `gpt-6.1-terra` |
+
+OpenAI spend has a daily budget of `max(OPENAI_FLOOR_USD, AI_FEE_SHARE × creator fees of the last 24h)`, so model spend never grows faster than the token earns. Every call is booked in the `ledger` table with its real token usage and cost. Past the budget, agents keep running on open models on Cloudflare Workers AI (Llama 3.3 70B, Llama 3.1 8B, gpt-oss-120b) until 00:00 UTC. The same fallback applies when no key is set. Which models are live, and today's spend against the budget, are public at [`/api/meta`](https://usedaemon.xyz/api/meta).
 
 Numbers such as prices, blocks and gas come from the sources above, never from a model. The model is only called when the data changed.
 
@@ -47,9 +62,9 @@ Numbers such as prices, blocks and gas come from the sources above, never from a
 
 ```
 contracts/       DaemonWallet + DaemonWalletFactory (solc 0.8.24, viaIR, cancun)
-worker/src/      Cloudflare Worker: API, cron scheduler, agents, Telegram, wallets, economics
+worker/src/      Cloudflare Worker: chat, API, cron scheduler, agents, onchain reads, Telegram, wallets, economics
 worker/scripts/  deploy + verify the factory, operator key setup, bot profile
-site/            the static site and night office
+site/            the static site: home, chat, office, how, token
 ```
 
 ## Run your own
@@ -62,6 +77,7 @@ npm run db:init
 npx wrangler secret put TELEGRAM_BOT_TOKEN
 npx wrangler secret put E2B_API_KEY       # optional: agent computers
 npx wrangler secret put OPENAI_API_KEY    # optional: OpenAI models
+npx wrangler secret put RH_RPC_URL        # optional: dedicated Robinhood Chain RPC
 node scripts/new-operator.mjs             # operator key -> worker secret
 node scripts/deploy-factory.mjs           # needs a little ETH on the operator
 npx wrangler deploy
